@@ -65,7 +65,7 @@ function initSimplace(installDir::String, workDir::String, outputDir::String,
      allcplist = vcat(fullpathcplist , cpliblist, additionalClasspathList)
 
      sep = ":"
-     if Sys.iswindows
+     if Sys.iswindows()
         sep = ";"
      end
      cpth = "-Djava.class.path=" * reduce((x,y) -> x*sep*y,allcplist)

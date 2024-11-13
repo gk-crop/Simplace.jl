@@ -48,9 +48,16 @@ JBoolean = JavaCall.@jimport java.lang.Boolean
 
 JStringArray = Array{JavaCall.JString,1}
  
-"Initializes the JVM and creates the SimplaceWrapper object which is used to interact with Simplace."
+"""
+    initSimplace(installDir::String, workDir::String, outputDir::String,
+    additionalClasspathList::Vector{String}=Vector{String}(), javaParameters::String="")
+
+  
+Initializes the JVM and creates the SimplaceWrapper object which is used to interact with Simplace.
+"""
 function initSimplace(installDir::String, workDir::String, outputDir::String,
-    additionalClasspathList=[], javaParameters::String="")
+    additionalClasspathList::Vector{String}=Vector{String}(), javaParameters::String="")
+
     cpliblist = [(joinpath(rp,filenm)) for (rp, dir, fil) in walkdir(joinpath(installDir,"simplace_core","lib")) for filenm in filter(f->f[end-3:end]==".JAR" || f[end-3:end]==".jar",fil)]
     cplist = [
           "simplace_core/build/classes",
@@ -81,8 +88,18 @@ function initSimplace(installDir::String, workDir::String, outputDir::String,
 
 end
 
-"Opens a Simplace project from a solution and optional project file"
-function openProject(simplace, solution, project=JavaCall.JString(C_NULL), parameterList=[])
+"""
+    openProject(simplace, 
+    solution::String, project::String = "", 
+    parameterList::Dict = Dict())
+
+Opens a Simplace project from a solution and optional project file
+"""
+function openProject(simplace, 
+    solution::String, project::String = "", 
+    parameterList::Dict = Dict())
+
+    project = (project =="") ? JavaCall.JString(C_NULL) : project
     jsess = JavaCall.@jimport net.simplace.sim.FWSimSession
 	names = Array{JavaCall.JString,1}
     val = Array{JavaCall.JObject,1}
@@ -90,24 +107,42 @@ function openProject(simplace, solution, project=JavaCall.JString(C_NULL), param
     return JavaCall.jcall(helper, "callPrepareSession", jsess, (wrapper, JavaCall.JString, JavaCall.JString,names, val),simplace, project, solution, n, v)
 end
 
-"Closes the actual Simplace project"
+"""
+    closeProject(simplace)
+
+Closes the actual Simplace project
+"""
 function closeProject(simplace)
     JavaCall.jcall(simplace, "shutDown", Nothing,())
 end
 
-"Runs the opened project"
+"""
+    runProject(simplace)
+
+Runs the opened project
+"""
 function runProject(simplace)
   return JavaCall.jcall(simplace,"run",Nothing,())
 end
 
-"Sets the lines of the project data files that should be used when running a project."
-function setProjectLines(simplace, lines)
+"""
+    setProjectLines(simplace, lines::String)
+
+Sets the lines of the project data files that should be used when running a project.
+"""
+function setProjectLines(simplace, lines::String)
     JavaCall.jcall(simplace,"setProjectLines",Nothing, JavaCall.JString, lines)
 end 
 
 
-"Creates a simulation and substitute parameters"
-function createSimulation(simplace, parameterList=[], queue = true)
+"""
+
+
+Creates a simulation and substitute parameters
+"""
+function createSimulation(simplace, 
+    parameterList::Dict = Dict(), 
+    queue::Bool = true)
     if !queue
 	    JavaCall.jcall(simplace,"resetSimulationQueue", Nothing);
 	end
@@ -121,19 +156,31 @@ function createSimulation(simplace, parameterList=[], queue = true)
     return id
 end
 
-"Clears the list of simulations"
+"""
+    resetSimulationQueue(simplace)
+
+Clears the list of simulations
+"""
 function resetSimulationQueue(simplace)
     JavaCall.jcall(simplace,"resetSimulationQueue", Nothing);
 end
 
-"Lists IDs of the performed simulations"
+"""
+    getSimulationIDs(simplace)
+
+Lists IDs of the performed simulations
+"""
 function getSimulationIDs(simplace) 
     simid = JavaCall.jcall(simplace,  "getSimulationIDs", JStringArray)
     return unpackStringArray(simid)
 end
 
-"Run the created simulations"
-function runSimulations(simplace, selectsimulation=false)
+"""
+    runSimulations(simplace, selectsimulation::Bool=false)
+
+Run the created simulations
+"""
+function runSimulations(simplace, selectsimulation::Bool=false)
   return JavaCall.jcall(simplace, "runSimulations", Nothing, (JavaCall.jboolean,), selectsimulation )
 end
 
@@ -141,31 +188,67 @@ end
 
 # configure framework
 
-"Set working-, output-, projects- and data-directory"
-function setSimplaceDirectories(simplace; WorkDir = JavaCall.JString(C_NULL), OutputDir = JavaCall.JString(C_NULL), ProjectsDir = JavaCall.JString(C_NULL), DataDir = JavaCall.JString(C_NULL))
-  JavaCall.jcall(simplace,"setDirectories", Nothing, (JavaCall.JString, JavaCall.JString,JavaCall.JString, JavaCall.JString), WorkDir, OutputDir, ProjectsDir, DataDir)
+"""
+    setSimplaceDirectories(simplace; 
+    WorkDir::String = "", 
+    OutputDir::String = "", 
+    ProjectsDir::String = "", 
+    DataDir::String = "" )
+
+Set working-, output-, projects- and data-directory
+"""
+function setSimplaceDirectories(simplace; 
+    WorkDir::String = "", 
+    OutputDir::String = "", 
+    ProjectsDir::String = "", 
+    DataDir::String = "" )
+  
+    WorkDir = (WorkDir == "") ? JavaCall.JString(C_NULL) : WorkDir
+    OutputDir = (OutputDir == "") ? JavaCall.JString(C_NULL) : OutputDir
+    ProjectsDir = (ProjectsDir == "") ? JavaCall.JString(C_NULL) : ProjectsDir
+    DataDir = (DataDir == "") ? JavaCall.JString(C_NULL) : DataDir
+
+    JavaCall.jcall(simplace,"setDirectories", Nothing, 
+      (JavaCall.JString, JavaCall.JString,JavaCall.JString, JavaCall.JString), 
+      WorkDir, OutputDir, ProjectsDir, DataDir)
 end
   
-"Get the directories (work-, output-, projects- and data-dir)"
+"""
+    getSimplaceDirectories(simplace)
+
+Get the directories (work-, output-, projects- and data-dir)
+"""
 function getSimplaceDirectories(simplace)
   res = unpackStringArray(JavaCall.jcall(simplace,"getDirectories", Vector{JavaCall.JString}))
   names =["_WORKDIR_", "_OUTPUTDIR_", "_PROJECTSDIR_", "_DATADIR_"]
   return Dict(zip(names,res))
 end
 
-"Sets the check level of the framework"
-function setCheckLevel(simplace, level)
+"""
+    setCheckLevel(simplace, level::String)
+
+Sets the check level of the framework
+"""
+function setCheckLevel(simplace, level::String)
   JavaCall.jcall(simplace,"setCheckLevel",Nothing, (JavaCall.JString,),level)
 end
 
-"Sets number of used CPUs"
-function setSlotCount(count)
+"""
+    setSlotCount(count::Integer)
+
+Sets number of used CPUs
+"""
+function setSlotCount(count::Integer)
   engine = JavaCall.@jimport net.simplace.sim.FWSimEngine
   JavaCall.jcall(engine,"setSlotCount",Nothing, (JavaCall.jint,),count)
 end
 
-"Sets the log level of the framework"
-function setLogLevel(level)
+"""
+    setLogLevel(level::String)
+
+Sets the log level of the framework
+"""
+function setLogLevel(level::String)
   jlog = JavaCall.@jimport net.simplace.core.logging.Logger
   jlevel = JavaCall.@jimport net.simplace.core.logging.Logger$LOGLEVEL
   llevel = JavaCall.jcall(jlevel,"valueOf",jlevel,(JavaCall.JString,),"INFO")
@@ -178,37 +261,58 @@ end
 
 # results
 
-"Fetch output from a simulation"
-function getResult(simplace, outputId, simulationId = C_NULL)
-   return JavaCall.jcall(simplace, "getResult", datacontainer, (JavaCall.JString, JavaCall.JString,),outputId, simulationId)
+"""
+    getResult(simplace, outputId::String, simulationId::String = "")
+
+Fetch output from a simulation
+"""
+function getResult(simplace, outputId::String, simulationId::String = "")
+    simulationId = (simulationId == "") ? JavaCall.JString(C_NULL) : simulationId
+    return JavaCall.jcall(simplace, "getResult", datacontainer, (JavaCall.JString, JavaCall.JString,),outputId, simulationId)
 end
 
-"Get the variable names of simulation result"
+"""
+    getVariablenamesOfResult(result)
+
+Get the variable names of simulation result
+"""
 function getVariablenamesOfResult(result)
     names = unpackStringArray(JavaCall.jcall(result,"getHeaderStrings",JStringArray))
     return names
 end
 
-"Get the units of the simulation result variables"
+"""
+    getUnitsOfResult(result)
+
+Get the units of the simulation result variables
+"""
 function getUnitsOfResult(result)
     units = unpackStringArray(JavaCall.jcall(result,"getHeaderUnits", JStringArray))
     names = getVariablenamesOfResult(result)
     return(Dict(zip(names, units)))
 end
 
-"Get the datatypes of the simulation result variables"
+"""
+    getDatatypesOfResult(result)
+
+Get the datatypes of the simulation result variables
+"""
 function getDatatypesOfResult(result)
     types = unpackStringArray(JavaCall.jcall(result,"getTypeStrings", JStringArray))
     names = getVariablenamesOfResult(result)
     return(Dict(zip(names, types)))
 end
 
-"Convert simulation result to Dict()"
-function resultToDict(result, from = Nothing, to = Nothing) 
+"""
+    resultToDict(result, from::Integer = 0, to::Integer = 0)
+
+Convert simulation result to Dict()
+"""
+function resultToDict(result, from::Integer = 0, to::Integer = 0) 
     types = getDatatypesOfResult(result)
     names = getVariablenamesOfResult(result)
     data = Nothing
-    if(from !=Nothing && to !=Nothing && from >=0 && to > from)
+    if(from >=0 && to > 0 && to > from)
         data = JavaCall.jcall(result,"getDataObjects",Array{JavaCall.JObject,1}, (JavaCall.jint, JavaCall.jint), from, to)
     else
         data = JavaCall.jcall(result,"getDataObjects",Array{JavaCall.JObject,1})
@@ -251,7 +355,7 @@ function convertToObject(x)
      return res
  end
  
- function paramListToJArray(paramList)
+ function paramListToJArray(paramList::Dict)
      ([ i[1] for i in paramList ],Array{JavaCall.JObject,1}([convertToObject(i[2]) for i in paramList]))
  end
 

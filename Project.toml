@@ -1,7 +1,7 @@
 name = "Simplace"
 uuid = "b0b0a731-1897-4268-b4ff-e689c85594d9"
-authors = ["Gunther Krauss"]
-version = "1.0.0-DEV"
+authors = ["Gunther Krauss <guntherkrauss@uni-bonn.de>"]
+version = "0.0.1"
 
 [compat]
 julia = "1.6.7"

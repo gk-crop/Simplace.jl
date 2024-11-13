@@ -63,7 +63,12 @@ function initSimplace(installDir::String, workDir::String, outputDir::String,
      fullpathcplist = [joinpath(installDir, s) for s in cplist]
 
      allcplist = vcat(fullpathcplist , cpliblist, additionalClasspathList)
-     cpth = "-Djava.class.path=" * reduce((x,y) -> x*";"*y,allcplist)
+
+     sep = ":"
+     if Sys.iswindows
+        sep = ";"
+     end
+     cpth = "-Djava.class.path=" * reduce((x,y) -> x*sep*y,allcplist)
 
      try
         jv = JavaCall.init([cpth,javaParameters])

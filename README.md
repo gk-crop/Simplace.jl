@@ -45,23 +45,25 @@ The usage of <span style="font-variant:small-caps;">Simplace</span> in Julia fol
 - get the result from the simulation
 - convert the result to a Julia object (`Dict()`)
 
+### Example
+
 ```{julia}
 using Simplace
 
 # Directory where simplace is installed
-installDir = "d:/java/simplace/"
+installDir = "d:/simplace/"
 
-workDir = joinpath(installDir,"simplace_run/simulation/")
-outputDir = joinpath(installDir,"simplace_run/output/")
-sol = joinpath(workDir,"gk/solution/complete/Complete.sol.xml")
+workDir = joinpath(installDir, "simplace_run/simulation/")
+outputDir = joinpath(installDir, "simplace_run/output/")
+sol = joinpath(workDir, "gk/solution/complete/Complete.sol.xml")
 
 # initialise simplace
-sh = initSimplace(installDir, workDir,outputDir)
+sh = initSimplace(installDir, workDir, outputDir)
 
-sess = openProject(sh, sol,"",Dict("enddate"=>"1999-12-31"))
+sess = openProject(sh, sol, "", Dict("enddate" => "1999-12-31"))
 
-# create a simulation that starts in 1995 and set the light use efficiency parameter to 3
-simid=createSimulation(sh,Dict("startdate"=>"1995-01-01","vBaseLUE"=>3))
+# create a simulation that starts in 1995 and set the light use efficiency parameter to 3.2
+simid=createSimulation(sh, Dict("startdate" => "1995-01-01", "vBaseLUE" => 3.2))
 
 setLogLevel("WARN")
 runSimulations(sh)
@@ -69,8 +71,8 @@ setLogLevel("INFO")
 
 closeProject(sh)
 
-# fecht the result (java object) and convert it into a Julia Dict()
-res = getResult(sh, "DIAGRAM_OUT",simid)
+# fetch the result (java object) and convert it into a Julia Dict()
+res = getResult(sh, "DIAGRAM_OUT", simid)
 d = resultToDict(res)
 d["AnthesisDate"]
 ```

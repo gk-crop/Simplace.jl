@@ -25,6 +25,7 @@ See [www.simplace.net](https://www.simplace.net/) for more information on Simpla
 ## Installing the Simplace Framework
 
 For installing <span style="font-variant:small-caps;">Simplace</span>, please consult the webpage [www.simplace.net](https://www.simplace.net/).
+Notice that Simplace version 5.1, svn revision >=403 is required.
 
 A brief guide to install <span style="font-variant:small-caps;">Simplace</span>:
 
@@ -45,7 +46,31 @@ The usage of <span style="font-variant:small-caps;">Simplace</span> in Julia fol
 - get the result from the simulation
 - convert the result to a Julia object (`Dict()`)
 
-### Example
+## Examples
+
+## Running a project
+
+```{julia}
+using Simplace
+
+# directory where simplace is installed
+installDir = "d:/simplace/"
+
+# configure path and choose simulation setup (solution, project)
+workDir = joinpath(installDir, "simplace_run/simulation/")
+outputDir = joinpath(installDir, "simplace_run/output/")
+sol = joinpath(workDir, "gk/solution/complete/Complete.sol.xml")
+proj = joinpath(workDir, "gk/project/complete/CompleteSensitivity.proj.xml")
+
+# initialise simplace
+sh = initSimplace(installDir, workDir, outputDir)
+
+sess = openProject(sh, sol, proj)
+runProject(sh)
+closeProject(sh)
+```
+
+## Run a solution with changed parameters
 
 ```{julia}
 using Simplace
@@ -74,5 +99,5 @@ closeProject(sh)
 # fetch the result (java object) and convert it into a Julia Dict()
 res = getResult(sh, "DIAGRAM_OUT", simid)
 d = resultToDict(res)
-d["AnthesisDate"]
+print(d["AnthesisDate"])
 ```

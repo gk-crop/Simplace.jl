@@ -49,11 +49,28 @@ JBoolean = JavaCall.@jimport java.lang.Boolean
 JStringArray = Array{JavaCall.JString,1}
  
 """
-    initSimplace(installDir::String, workDir::String, outputDir::String,
-    additionalClasspathList::Vector{String}=Vector{String}(), javaParameters::String="")
+    initSimplace(
+      installDir::String, workDir::String, outputDir::String,
+      additionalClasspathList::Vector{String}=Vector{String}(), javaParameters::String="")
 
   
-Initializes the JVM and creates the SimplaceWrapper object which is used to interact with Simplace.
+Initializes the Java Virtual Machine and instantiates the SimplaceWrapper object.
+
+The `installDir` is the directory where the folder `simplace_core` and `simplace_modules`
+are located. 
+`workDir` should point to the folder where your data and parameter files are located.
+
+The function returns a handle to the Simplace framework which has to be used for
+subsequent function calls to the framework.
+
+# Examples
+```julia
+julia> sh = initSimplace("~/ws/", "~/ws/simplace_run/simulation/", "~/output/")
+julia> openProject(sh, "~/ws/simplace_run/simulation/example/Simulation.sol.xml")
+julia> runProject(sh)
+julia> closeProject(sh)
+```
+
 """
 function initSimplace(installDir::String, workDir::String, outputDir::String,
     additionalClasspathList::Vector{String}=Vector{String}(), javaParameters::String="")

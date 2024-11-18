@@ -32,7 +32,9 @@ A brief guide to install <span style="font-variant:small-caps;">Simplace</span>:
 - If you don't have installed Java, please install an appropriate version of the (JRE or JDK) from [openjdk.org](https://openjdk.org/) or [adoptium.net](https://adoptium.net) (recommended).
 - Get Simplace from [www.simplace.net](https://www.simplace.net/)
 - Install the `Simplace` package in Julia:  
-
+```julia
+julia> using Pkg; Pkg.add("Simplace")
+```
 If you encounter errors, make sure to install the package `JavaCall`.
 
 ## Basic Usage
@@ -48,7 +50,7 @@ The usage of <span style="font-variant:small-caps;">Simplace</span> in Julia fol
 
 ## Examples
 
-## Running a project
+### Running a project
 
 ```{julia}
 using Simplace
@@ -70,7 +72,7 @@ runProject(sh)
 closeProject(sh)
 ```
 
-## Run a solution with changed parameters
+### Run a solution with changed parameters
 
 ```{julia}
 using Simplace

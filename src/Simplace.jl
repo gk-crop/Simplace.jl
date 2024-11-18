@@ -49,26 +49,28 @@ JBoolean = JavaCall.@jimport java.lang.Boolean
 JStringArray = Array{JavaCall.JString,1}
  
 """
-    initSimplace(
-      installDir::String, workDir::String, outputDir::String,
-      additionalClasspathList::Vector{String}=Vector{String}(), javaParameters::String="")
+    sh = initSimplace(installDir, workDir, outputDir)
 
   
 Initializes the Java Virtual Machine and instantiates the SimplaceWrapper object.
 
-The `installDir` is the directory where the folder `simplace_core` and `simplace_modules`
-are located. 
-`workDir` should point to the folder where your data and parameter files are located.
-
 The function returns a handle to the Simplace framework which has to be used for
 subsequent function calls to the framework.
 
+# Arguments
+- `installDir::String` - folder where the subfolders `simplace_core` and `simplace_modules`
+are located.
+- `workDir::String` - folder where simulation data and parameter files are located
+- `outputDir::String` - folder where simulation results are written
+- `additionClasspathList::Vector{String} - list of additional classpaths`
+- `javaParameters::String` - parameters to initialise the JVM (e.g. amount of memory the JVM should use)
+
 # Examples
 ```julia
-julia> sh = initSimplace("~/ws/", "~/ws/simplace_run/simulation/", "~/output/")
-julia> openProject(sh, "~/ws/simplace_run/simulation/example/Simulation.sol.xml")
-julia> runProject(sh)
-julia> closeProject(sh)
+sh = initSimplace("~/ws/", "~/ws/simplace_run/simulation/", "~/output/")
+openProject(sh, "~/ws/simplace_run/simulation/example/Simulation.sol.xml")
+runProject(sh)
+closeProject(sh)
 ```
 
 """
@@ -106,11 +108,24 @@ function initSimplace(installDir::String, workDir::String, outputDir::String,
 end
 
 """
-    openProject(simplace, 
-    solution::String, project::String = "", 
-    parameterList::Dict = Dict())
+    openProject(simplace, solution)
 
 Opens a Simplace project from a solution and optional project file
+
+# Arguments
+
+- `simplace` handle to the framework returned by `initSimplace`
+- `solution::String` path to a solution file (.sol.xml)
+- `project::String` optional path to a project file (.proj.xml) - default "" means no project
+- `parameterList::Dict` a dictionary where the keys correspond to parameter names
+
+# Examples
+
+```julia
+param = Dict("startdate" => "2020-01-01", "vLUE" => 3.0)
+openProject(sh, "Yield.sol.xml", "", param)
+```
+
 """
 function openProject(simplace, 
     solution::String, project::String = "", 
@@ -143,9 +158,22 @@ function runProject(simplace)
 end
 
 """
-    setProjectLines(simplace, lines::String)
+    setProjectLines(simplace, lines)
 
 Sets the lines of the project data files that should be used when running a project.
+
+# Arguments
+
+- `simplace` handle to the framework returned by `initSimplace`
+- `lines::String` - string with line numbers or ranges of lines, separated by comma, e.g. `"2,5,7,10-15,30"`
+
+# Examples
+
+```julia
+setProjectLines(sh, "2,5,7,10-15,30")
+runProject(sh)
+```
+
 """
 function setProjectLines(simplace, lines::String)
     JavaCall.jcall(simplace,"setProjectLines",Nothing, JavaCall.JString, lines)
@@ -153,9 +181,38 @@ end
 
 
 """
+    simid = createSimulation(simplace, parameterList)
 
 
-Creates a simulation and substitute parameters
+Creates a simulation and substitute parameters.
+
+Returns the id of the currently created simulation.
+
+
+# Arguments
+
+- `simplace` handle to the framework returned by `initSimplace`
+- `parameterList::Dict` a dictionary where the keys correspond to parameter names
+- `queue::Bool` is the simulation added to existing list or does it starts a new list
+
+
+# Examples
+
+Create two simulations and run them
+
+```julia
+createSimulation(sh, Dict("vLUE" => 3.0))
+createSimulation(sh, Dict("vLUE" => 3.2))
+runSimulations(sh)
+```
+Create a new simulation, but remove previous simulations
+
+```julia
+createSimulation(sh, Dict("vLUE" => 3.1), false)
+runSimulations(sh)
+
+```
+
 """
 function createSimulation(simplace, 
     parameterList::Dict = Dict(), 
@@ -183,9 +240,9 @@ function resetSimulationQueue(simplace)
 end
 
 """
-    getSimulationIDs(simplace)
+    ids = getSimulationIDs(simplace)
 
-Lists IDs of the performed simulations
+Get IDs of the simulations in the simulation list
 """
 function getSimulationIDs(simplace) 
     simid = JavaCall.jcall(simplace,  "getSimulationIDs", JStringArray)
@@ -195,7 +252,7 @@ end
 """
     runSimulations(simplace, selectsimulation::Bool=false)
 
-Run the created simulations
+Run the created simulations in the simulation list.
 """
 function runSimulations(simplace, selectsimulation::Bool=false)
   return JavaCall.jcall(simplace, "runSimulations", Nothing, (JavaCall.jboolean,), selectsimulation )
@@ -231,7 +288,7 @@ function setSimplaceDirectories(simplace;
 end
   
 """
-    getSimplaceDirectories(simplace)
+    dirs = getSimplaceDirectories(simplace)
 
 Get the directories (work-, output-, projects- and data-dir)
 """
@@ -264,6 +321,10 @@ end
     setLogLevel(level::String)
 
 Sets the log level of the framework
+
+Valid log levels - sorted by verbosity - are `"FATAL", "ERROR", "WARN", "INFO"` and `"DEBUG"`.
+
+
 """
 function setLogLevel(level::String)
   jlog = JavaCall.@jimport net.simplace.core.logging.Logger
@@ -279,9 +340,25 @@ end
 # results
 
 """
-    getResult(simplace, outputId::String, simulationId::String = "")
+    result = getResult(simplace, outputId)
 
-Fetch output from a simulation
+    
+Fetch output from a simulation.
+
+# Arguments
+
+- `simplace` handle to the framework returned by `initSimplace`
+- `outputId::String` output id defined in the simulation setup (solution or project)
+- `simulationId::String` optional id of the simulation, default "" returns result of all simulations
+
+# Examples
+
+```julia
+runSimulations(sh)
+result = getResult(sh, "PhenologyOutput")
+data = resultToDict(result)
+```
+
 """
 function getResult(simplace, outputId::String, simulationId::String = "")
     simulationId = (simulationId == "") ? JavaCall.JString(C_NULL) : simulationId
@@ -289,7 +366,7 @@ function getResult(simplace, outputId::String, simulationId::String = "")
 end
 
 """
-    getVariablenamesOfResult(result)
+    names = getVariablenamesOfResult(result)
 
 Get the variable names of simulation result
 """
@@ -299,7 +376,7 @@ function getVariablenamesOfResult(result)
 end
 
 """
-    getUnitsOfResult(result)
+    units = getUnitsOfResult(result)
 
 Get the units of the simulation result variables
 """
@@ -310,7 +387,7 @@ function getUnitsOfResult(result)
 end
 
 """
-    getDatatypesOfResult(result)
+    dtypes = getDatatypesOfResult(result)
 
 Get the datatypes of the simulation result variables
 """
@@ -321,9 +398,11 @@ function getDatatypesOfResult(result)
 end
 
 """
-    resultToDict(result, from::Integer = 0, to::Integer = 0)
+    data = resultToDict(result, from::Integer = 0, to::Integer = 0)
 
 Convert simulation result to Dict()
+
+If `from` and `to` are given, then only the according subset of data is returned.
 """
 function resultToDict(result, from::Integer = 0, to::Integer = 0) 
     types = getDatatypesOfResult(result)

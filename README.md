@@ -1,6 +1,8 @@
 # Simplace
 
 [![Build Status](https://github.com/gk-crop/Simplace.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/gk-crop/Simplace.jl/actions/workflows/CI.yml?query=branch%3Amain)
+ [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://gk-crop.github.io/Simplace.jl/dev)
+ [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://gk-crop.github.io/Simplace.jl/stable)
 
 Julia package to interact with the modeling framework Simplace
 

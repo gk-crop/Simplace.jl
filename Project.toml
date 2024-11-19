@@ -1,7 +1,7 @@
 name = "Simplace"
 uuid = "b0b0a731-1897-4268-b4ff-e689c85594d9"
 authors = ["Gunther Krauss <guntherkrauss@uni-bonn.de>"]
-version = "0.1.1"
+version = "0.2.0"
 
 [deps]
 JavaCall = "494afd89-becb-516b-aafa-70d2670c0337"

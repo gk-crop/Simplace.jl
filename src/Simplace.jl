@@ -22,6 +22,9 @@ export setSlotCount
 export setSimplaceDirectories
 export getSimplaceDirectories
 
+export findSimplaceInstallations
+export findFirstSimplaceInstallation
+
 # export setSimulationValues
 # export setAllSimulationValues
 # export stepSimulation
@@ -62,8 +65,8 @@ subsequent function calls to the framework.
 are located.
 - `workDir::String` - folder where simulation data and parameter files are located
 - `outputDir::String` - folder where simulation results are written
-- `additionClasspathList::Vector{String} - list of additional classpaths`
-- `javaParameters::String` - parameters to initialise the JVM (e.g. amount of memory the JVM should use)
+- `additionalClasspathList::Union{String, Vector{String}} - list of additional classpaths`
+- `javaParameters::Union{String, Vector{String}}` - parameters to initialise the JVM (e.g. amount of memory the JVM should use)
 
 # Examples
 ```julia
@@ -74,8 +77,11 @@ closeProject(sh)
 ```
 
 """
-function initSimplace(installDir::String, workDir::String, outputDir::String,
-    additionalClasspathList::Vector{String}=Vector{String}(), javaParameters::String="")
+function initSimplace(
+    installDir::String = findFirstSimplaceInstallation(), 
+    workDir::String = joinpath(installDir, "simplace_run/simulation/"), 
+    outputDir::String = joinpath(installDir, "simplace_run/output/"),
+    additionalClasspathList::Union{String, Vector{String}}="", javaParameters::Union{String,Vector{String}}="")
 
     cpliblist = [(joinpath(rp,filenm)) for (rp, dir, fil) in walkdir(joinpath(installDir,"simplace_core","lib")) for filenm in filter(f->f[end-3:end]==".JAR" || f[end-3:end]==".jar",fil)]
     cplist = [
@@ -97,7 +103,7 @@ function initSimplace(installDir::String, workDir::String, outputDir::String,
      cpth = "-Djava.class.path=" * reduce((x,y) -> x*sep*y,allcplist)
 
      try
-        jv = JavaCall.init([cpth,javaParameters])
+        jv = JavaCall.init([cpth; javaParameters])
      catch y
      end
 
@@ -131,6 +137,15 @@ function openProject(simplace,
     solution::String, project::String = "", 
     parameterList::Dict = Dict())
 
+    workdir = getSimplaceDirectories(simplace)["_WORKDIR_"]
+
+    if !isfile(solution) && isfile(joinpath(workdir,solution))
+        solution = joinpath(workdir, solution)
+    end
+
+    if project!="" && !isfile(project) && isfile(joinpath(workdir,project))
+        project = joinpath(workdir, project)
+    end
     project = (project =="") ? JavaCall.JString(C_NULL) : project
     jsess = JavaCall.@jimport net.simplace.sim.FWSimSession
 	names = Array{JavaCall.JString,1}
@@ -418,6 +433,65 @@ function resultToDict(result, from::Integer = 0, to::Integer = 0)
         d[names[i]] = convertFromType(data[i],types[names[i]])
     end
     return d
+end
+
+
+"""
+    installDirs = findSimplaceInstallations()
+
+Finds simplace installation directories and returns them as list.
+
+# Arguments
+
+- `directories::Union{String, Vector{String}}` List of potential directories
+- `tryStandardDirs::Bool` searches in common places like `~/workspace` or `d:/workspace/`
+- `firstMatchOnly::Bool` returns only the first directory that matches
+- `simulationDir::String` name of the directory where simulations are stored
+- `ignoreSimulationDir::Bool` ignores the existance of `simulationDir` in candidate folder
+
+"""
+function findSimplaceInstallations(
+    directories::Union{String, Vector{String}} = "", 
+    tryStandardDirs = true, 
+    firstMatchOnly = false, 
+    simulationsDir = "simplace_run", 
+    ignoreSimulationsDir = false
+) 
+    directories = [directories;]
+    if tryStandardDirs
+        drives = [homedir(), "d:\\", "c:\\", "e:\\","f:\\","g:\\","h:\\",pwd()]
+        folders = ["workspace/","simplace/workspace/","simplace/","java/simplace/"]
+        paths_all = [joinpath(d,f) for d in drives for f in folders]
+        directories = [directories; paths_all]
+    end
+        
+
+    paths = [df for df in directories if isdir(joinpath(df,"simplace_core")) &&  isdir(joinpath(df,"simplace_modules")) && 
+        (ignoreSimulationsDir || isdir(joinpath(df,simulationsDir))) ]
+
+    if firstMatchOnly
+        if length(paths) > 0
+            return paths[1]
+        else
+            return Nothing
+        end
+    else
+        return paths
+    end    
+end
+
+
+"""
+    installDir = findFirstSimplaceInstallation()
+
+Finds first installation of Simplace
+"""
+function findFirstSimplaceInstallation(
+    directories::Union{String, Vector{String}} = "", 
+    tryStandardDirs = true, 
+    simulationsDir = "simplace_run", 
+    ignoreSimulationsDir = false) 
+    return findSimplaceInstallations(directories, tryStandardDirs, true, simulationsDir, ignoreSimulationsDir)
 end
 
 # helper functions

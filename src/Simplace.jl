@@ -3,6 +3,7 @@ module Simplace
 import JavaCall
 
 export initSimplace
+export initSimplaceDefault
 
 export openProject
 export closeProject
@@ -84,6 +85,7 @@ function initSimplace(
     additionalClasspathList::Union{String, Vector{String}}="", javaParameters::Union{String,Vector{String}}="")
 
     cpliblist = [(joinpath(rp,filenm)) for (rp, dir, fil) in walkdir(joinpath(installDir,"simplace_core","lib")) for filenm in filter(f->f[end-3:end]==".JAR" || f[end-3:end]==".jar",fil)]
+    cpliblistinst = [(joinpath(rp,filenm)) for (rp, dir, fil) in walkdir(joinpath(installDir,"lib")) for filenm in filter(f->f[end-3:end]==".JAR" || f[end-3:end]==".jar",fil)]
     cplist = [
           "simplace_core/build/classes",
           "simplace_core/conf",
@@ -91,25 +93,33 @@ function initSimplace(
           "simplace_run/build/classes",
           "simplace_run/conf",
           "simplace_core/res/files"
-     ]
-     fullpathcplist = [joinpath(installDir, s) for s in cplist]
+    ]
+    fullpathcplist = [joinpath(installDir, s) for s in cplist]
 
-     allcplist = vcat(fullpathcplist , cpliblist, additionalClasspathList)
+    allcplist = vcat(fullpathcplist , cpliblist, cpliblistinst, additionalClasspathList)
 
-     sep = ":"
-     if Sys.iswindows()
+    sep = ":"
+    if Sys.iswindows()
         sep = ";"
-     end
-     cpth = "-Djava.class.path=" * reduce((x,y) -> x*sep*y,allcplist)
+    end
+    cpth = "-Djava.class.path=" * reduce((x,y) -> x*sep*y,allcplist)
 
-     try
+    try
         jv = JavaCall.init([cpth; javaParameters])
-     catch y
-     end
+    catch y
+    end
 
-     sh = wrapper((JavaCall.JString,JavaCall.JString,),workDir,outputDir)
+    if !isdir(workDir) && isdir(joinpath(installDir,workDir))
+        workDir = joinpath(installDir, workDir)
+    end
 
-     return sh
+    if !isdir(dirname(outputDir)) && isdir(joinpath(installDir,outputDir))
+        outputDir = joinpath(installDir, outputDir)
+    end
+
+    sh = wrapper((JavaCall.JString,JavaCall.JString,),workDir,outputDir)
+
+    return sh
 
 end
 
@@ -270,7 +280,7 @@ end
 Run the created simulations in the simulation list.
 """
 function runSimulations(simplace, selectsimulation::Bool=false)
-  return JavaCall.jcall(simplace, "runSimulations", Nothing, (JavaCall.jboolean,), selectsimulation )
+  JavaCall.jcall(simplace, "runSimulations", Nothing, (JavaCall.jboolean,), selectsimulation )
 end
 
 
@@ -398,7 +408,7 @@ Get the units of the simulation result variables
 function getUnitsOfResult(result)
     units = unpackStringArray(JavaCall.jcall(result,"getHeaderUnits", JStringArray))
     names = getVariablenamesOfResult(result)
-    return(Dict(zip(names, units)))
+    return Dict(zip(names, units))
 end
 
 """
@@ -409,7 +419,7 @@ Get the datatypes of the simulation result variables
 function getDatatypesOfResult(result)
     types = unpackStringArray(JavaCall.jcall(result,"getTypeStrings", JStringArray))
     names = getVariablenamesOfResult(result)
-    return(Dict(zip(names, types)))
+    return Dict(zip(names, types))
 end
 
 """
@@ -418,11 +428,13 @@ end
 Convert simulation result to Dict()
 
 If `from` and `to` are given, then only the according subset of data is returned.
+If the expand argument is set to false, then array values are not converted but
+returned as java object arrays.
 """
-function resultToDict(result, from::Integer = 0, to::Integer = 0) 
+function resultToDict(result, from::Integer = 0, to::Integer = 0, expand::Bool=true) 
     types = getDatatypesOfResult(result)
     names = getVariablenamesOfResult(result)
-    data = Nothing
+    data = nothing
     if(from >=0 && to > 0 && to > from)
         data = JavaCall.jcall(result,"getDataObjects",Array{JavaCall.JObject,1}, (JavaCall.jint, JavaCall.jint), from, to)
     else
@@ -430,23 +442,32 @@ function resultToDict(result, from::Integer = 0, to::Integer = 0)
     end
     d = Dict()
     for i in eachindex(names)
-        d[names[i]] = convertFromType(data[i],types[names[i]])
+        d[names[i]] = convertFromType(data[i], types[names[i]], expand)
     end
     return d
 end
 
 
+# convenience functions
+
 """
     installDirs = findSimplaceInstallations()
 
-Finds simplace installation directories and returns them as list.
+Returns a list of simplace installation folders.
+
+The function checks in common locations if there are `simplace_core`, `simplace_modules` and
+(optionally) `simplace_run` subfolders.
+
+One can give also a list of own candidate folders. Using autodetection makes the scripts
+more portable.
+
 
 # Arguments
 
-- `directories::Union{String, Vector{String}}` List of potential directories
+- `directories::Union{String, Vector{String}}` List of potential folders
 - `tryStandardDirs::Bool` searches in common places like `~/workspace` or `d:/workspace/`
-- `firstMatchOnly::Bool` returns only the first directory that matches
-- `simulationDir::String` name of the directory where simulations are stored
+- `firstMatchOnly::Bool` returns only the first folder that matches
+- `simulationDir::String` name of the folder where simulations are stored
 - `ignoreSimulationDir::Bool` ignores the existance of `simulationDir` in candidate folder
 
 """
@@ -473,7 +494,7 @@ function findSimplaceInstallations(
         if length(paths) > 0
             return paths[1]
         else
-            return Nothing
+            return nothing
         end
     else
         return paths
@@ -494,39 +515,89 @@ function findFirstSimplaceInstallation(
     return findSimplaceInstallations(directories, tryStandardDirs, true, simulationsDir, ignoreSimulationsDir)
 end
 
+
+"""
+    sh = initSimplaceDefault(setting)
+
+Initialises Simplace with work- and outputdir for different settings.
+
+Available settings are "run", "modules", "lapclient" and "wininstall".
+
+- run: use first simplace installation with workdir "simplace_run/simulation/" (default)
+- modules: use first simplace installation with workdir "simplace_modules/test/"
+- lapclient: use first simplace installation with workdir "lapclient/data/"
+- wininstall: use the local or system installation of Simplace GUI  with workdir "SIMPLACE_WORK" in the users home directory
+
+"""
+function initSimplaceDefault(setting::String="run") 
+    
+    d = findFirstSimplaceInstallation()
+  
+    if setting=="modules" 
+    wd = joinpath(d,"simplace_modules/test/")
+    od = joinpath(d,"simplace_modules/output/")
+  
+    elseif setting=="lapclient"
+    wd = joinpath(d,"lapclient/data/")
+    od = joinpath(d,"lapclient/output/")
+  
+    elseif setting=="wininstall"
+        d = joinpath(get(ENV,"LOCALAPPDATA",""),"SIMPLACE64/")
+        if !isdir(joinpath(d,"lib/"))
+            d = joinpath(get(ENV,"LOCALAPPDATA",""),"Programs/SIMPLACE64/")
+            if !isdir(joinpath(d,"lib/"))
+                d = joinpath(get(ENV,"ProgramFiles",""),"SIMPLACE64/")
+                if !isdir(joinpath(d,"lib/"))
+                    d = findFirstSimplaceInstallation()
+                end
+            end
+        end
+    
+        hd = get(ENV,"USERPROFILE","")
+        wd = joinpath(hd,"SIMPLACE_WORK/")
+        od = joinpath(hd,"SIMPLACE_WORK/output/")
+    else 
+        wd = joinpath(d,"simplace_run/simulation/")
+        od = joinpath(d,"simplace_run/output/")
+    end
+    return initSimplace(d, wd, od)
+end
+
+
+
 # helper functions
 
 # input parameters
 
 function convertToObject(x) 
-    res = Nothing
-     if x isa Vector
-         if x isa Vector{String}
-             res = Array{JavaCall.JObject,1}(x)
-         elseif x isa Vector{Float64} 
-             res = Array{JavaCall.JObject,1}([JavaCall.jcall(JDouble,"valueOf",JDouble, (JavaCall.jdouble,),e) for e in x])
-         elseif x isa Vector{Int64} 
-             res = Array{JavaCall.JObject,1}([JavaCall.jcall(JInteger,"valueOf",JInteger, (JavaCall.jint,),e) for e in x])
-         elseif x isa Vector{Bool} 
-             res = Array{JavaCall.JObject,1}([JavaCall.jcall(JBoolean,"valueOf",JBoolean, (JavaCall.jboolean,),e) for e in x])
-         end
-         res = JavaCall.jcall(helper, "castArrayToObject", JObject, (Array{JObject,1},),res)
-     else
-         if x isa Float64
-             res = JavaCall.jcall(JDouble,"valueOf",JDouble,(JavaCall.jdouble,),x)
-         elseif x isa Int64
-             res = JavaCall.jcall(JInteger,"valueOf",JInteger,(JavaCall.jint,),x)
-         elseif x isa Bool
-             res = JavaCall.jcall(JBoolean,"valueOf",JBoolean,(JavaCall.jboolean,),x)
-         else 
-             res = convert(JavaCall.JString,x)
-         end
-     end
-     return res
+    res = nothing
+    if x isa Vector
+        if x isa Vector{String}
+            res = Array{JavaCall.JObject,1}(x)
+        elseif x isa Vector{Float64} 
+            res = Array{JavaCall.JObject,1}([JavaCall.jcall(JDouble,"valueOf",JDouble, (JavaCall.jdouble,),e) for e in x])
+        elseif x isa Vector{Int64} 
+            res = Array{JavaCall.JObject,1}([JavaCall.jcall(JInteger,"valueOf",JInteger, (JavaCall.jint,),e) for e in x])
+        elseif x isa Vector{Bool} 
+            res = Array{JavaCall.JObject,1}([JavaCall.jcall(JBoolean,"valueOf",JBoolean, (JavaCall.jboolean,),e) for e in x])
+        end
+        res = JavaCall.jcall(helper, "castArrayToObject", JObject, (Array{JObject,1},),res)
+    else
+        if x isa Float64
+            res = JavaCall.jcall(JDouble,"valueOf",JDouble,(JavaCall.jdouble,),x)
+        elseif x isa Int64
+            res = JavaCall.jcall(JInteger,"valueOf",JInteger,(JavaCall.jint,),x)
+        elseif x isa Bool
+            res = JavaCall.jcall(JBoolean,"valueOf",JBoolean,(JavaCall.jboolean,),x)
+        else 
+            res = convert(JavaCall.JString,x)
+        end
+    end
+    return res
  end
  
  function paramListToJArray(paramList::Dict)
-     ([ i[1] for i in paramList ],Array{JavaCall.JObject,1}([convertToObject(i[2]) for i in paramList]))
+     return ([ i[1] for i in paramList ],Array{JavaCall.JObject,1}([convertToObject(i[2]) for i in paramList]))
  end
 
 # output result
@@ -540,31 +611,31 @@ function unpackStringArray(strArr::JStringArray)
 end
 
 
-function convertFromType(n, type)
+function convertFromType(n, type, expand::Bool = true)
     if type == "DOUBLE" 
         n = convert(Vector{JavaCall.JObject}, n)
         return map(x -> try convert(JavaCall.jdouble,convert(JDouble,x)) catch e missing end, n)
     elseif type == "DOUBLEARRAY"
         n = convert(Vector{Vector{JavaCall.JObject}}, n)
-        map(y -> map(x -> try convert(JavaCall.jdouble,convert(JDouble,x)) catch e missing end, y), n)
+        return !expand ? n : map(y -> map(x -> try convert(JavaCall.jdouble,convert(JDouble,x)) catch e missing end, y), n)
     elseif type == "INT"
         n = convert(Vector{JavaCall.JObject}, n)
         return map(x -> try convert(JavaCall.jint,convert(JInteger,x)) catch e missing end, n)
     elseif type == "INTARRAY"
         n = convert(Vector{Vector{JavaCall.JObject}}, n)
-        map(y -> map(x -> try convert(JavaCall.jint,convert(JInteger,x)) catch e missing end, y), n)
+        return !expand ? n : map(y -> map(x -> try convert(JavaCall.jint,convert(JInteger,x)) catch e missing end, y), n)
     elseif type == "BOOLEAN"
         n = convert(Vector{JavaCall.JObject}, n)
-        return map(x -> try convert(JavaCall.jboolean,convert(JBoolean,x)) catch e missing end, n)
+        map(x -> try convert(JavaCall.jboolean,convert(JBoolean,x)) catch e missing end, n)
     elseif type == "BOOLEANARRAY"
         n = convert(Vector{Vector{JavaCall.JObject}}, n)
-        map(y -> map(x -> try convert(JavaCall.jboolean,convert(JBoolean,x)) catch e missing end, y), n)
+        return !expand ? n : map(y -> map(x -> try convert(JavaCall.jboolean,convert(JBoolean,x)) catch e missing end, y), n)
     elseif type == "CHAR" || type == "DATE"
         n = convert(Vector{JavaCall.JObject}, n)
         return map(x -> try JavaCall.jcall(x,"toString", JavaCall.JString) catch e missing end, n)
     elseif type == "CHARARRAY" || type == "DATEARRAY"
         n = convert(Vector{Vector{JavaCall.JObject}}, n)
-        return map(y -> map(x -> try JavaCall.jcall(x,"toString", JavaCall.JString) catch e missing end, y), n)
+        return !expand ? n : map(y -> map(x -> try JavaCall.jcall(x,"toString", JavaCall.JString) catch e missing end, y), n)
     else
         return convert(Vector{JavaCall.JObject}, n)
     end 

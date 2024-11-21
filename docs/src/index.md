@@ -1,5 +1,6 @@
-# Simplace.jl Documentation
+# Simplace Documentation
 
+Simplace is a Julia package to interact with the modeling framework Simplace.
 
 ```@contents
 ```
@@ -78,6 +79,27 @@ closeProject(sh)
 res = getResult(sh, "DIAGRAM_OUT", simid)
 d = resultToDict(res)
 print(d["AnthesisDate"])
+```
+
+### Using default locations for framework and simulations
+
+If you keep the Simplace installation and simulations data in standard
+folders (e.g. `~/workspace/` or `D:/workspace/` etc.), you can omit 
+the specification of folders.
+
+```{julia}
+using Simplace
+
+# define filenames relative to workdir
+sol = "gk/solution/complete/Complete.sol.xml"
+proj = "gk/project/complete/CompleteSensitivity.proj.xml"
+
+# initialise simplace - it will auto-detect the framework location
+sh = initSimplace()
+
+sess = openProject(sh, sol, proj)
+runProject(sh)
+closeProject(sh)
 ```
 
 

@@ -26,12 +26,12 @@ export getSimplaceDirectories
 export findSimplaceInstallations
 export findFirstSimplaceInstallation
 
-# export setSimulationValues
-# export setAllSimulationValues
-# export stepSimulation
-# export stepAllSimulations
+export setSimulationValues
+export setAllSimulationValues
+export stepSimulation
+export stepAllSimulations
 
-# export varmapToDict
+export varmapToDict
 
 export getResult
 
@@ -284,6 +284,89 @@ function runSimulations(simplace, selectsimulation::Bool=false)
 end
 
 
+"""
+    setSimulationValues(simplace,  parameterList::Dict = Dict(), 
+    simulationNumber::Integer = 1)
+
+Set the values of a simulation.
+"""
+function setSimulationValues(simplace, 
+    parameterList::Dict = Dict(), 
+    simulationNumber::Integer = 1)
+
+    names = Array{JavaCall.JString,1}
+    val = Array{JavaCall.JObject,1}
+    (n,v) = paramListToJArray(parameterList)
+    JavaCall.jcall(helper,"callSetSimulationValues", Nothing, (wrapper, JavaCall.jint, names, val), simplace, simulationNumber - 1, n, v)
+end
+
+
+"""
+    setAllSimulationValues(simplace, 
+    parameterList::Vector{<:Dict} = Vector{Dict}())
+
+Set the values for all simulations.
+"""
+function setAllSimulationValues(simplace, 
+    parameterList::Vector{<:Dict} = Vector{Dict}())
+    for i in eachindex(parameterList)
+        setSimulationValues(simplace, parameterList[i], i)
+    end
+end
+
+
+
+"""
+    stepSimulation(simplace, 
+    count::Integer = 1,
+    filter::Vector{String} = Vector{String}(),
+    parameterList::Dict = Dict(), 
+    simulationNumber::Integer = 1)
+
+Performs a simulation for `count` days. 
+
+"""
+function stepSimulation(simplace, 
+    count::Integer = 1,
+    filter::Vector{String} = Vector{String}(),
+    parameterList::Dict = Dict(), 
+    simulationNumber::Integer = 1)
+
+    names = Array{JavaCall.JString,1}
+    val = Array{JavaCall.JObject,1}
+    (n,v) = paramListToJArray(parameterList)
+	
+    if(length(filter)==0) 
+        res = JavaCall.jcall(helper,"callStepSpecific", datacontainer, (wrapper, JavaCall.jint, names, val, JavaCall.jint), simplace, simulationNumber - 1, n, v, count)
+    else
+        res = JavaCall.jcall(helper,"callStepSpecific", datacontainer, (wrapper, JavaCall.jint, names, val, Vector{JavaCall.JString}, JavaCall.jint), simplace, simulationNumber - 1, n, v,filter, count)
+    end
+    return res
+end
+
+
+"""
+    stepAllSimulations(simplace, 
+    count::Integer = 1,
+    filter::Vector{String} = Vector{String}(),
+    parameterList::Vector{<:Dict} = Vector{Dict}())
+
+Runs all queued simulations for `count` days.
+"""
+function stepAllSimulations(simplace, 
+    count::Integer = 1,
+    filter::Vector{String} = Vector{String}(),
+    parameterList::Vector{<:Dict} = Vector{Dict}())
+
+    setAllSimulationValues(simplace, parameterList)
+	
+    if(length(filter)==0) 
+        res = JavaCall.jcall(helper,"callStepAll", Vector{datacontainer}, (wrapper, JavaCall.jint,  JavaCall.jboolean), simplace, count, false)
+    else
+        res = JavaCall.jcall(helper,"callStepAll", Vector{datacontainer}, (wrapper, Vector{JavaCall.JString}, JavaCall.jint, JavaCall.jboolean), simplace, filter, count, false)
+    end
+    return res
+end
 
 # configure framework
 
@@ -443,6 +526,28 @@ function resultToDict(result, from::Integer = 0, to::Integer = 0, expand::Bool=t
     d = Dict()
     for i in eachindex(names)
         d[names[i]] = convertFromType(data[i], types[names[i]], expand)
+    end
+    return d
+end
+
+
+"""
+    varmapToDict(varmap, expand = true)
+
+Convert simulation result to Dict()
+
+
+If the expand argument is set to false, then array values are not converted but
+returned as java object arrays.
+"""
+function varmapToDict(varmap, expand::Bool=true) 
+    types = getDatatypesOfResult(varmap)
+    names = getVariablenamesOfResult(varmap)
+    data = JavaCall.jcall(varmap,"getDataObjects",Array{JavaCall.JObject,1})
+    
+    d = Dict()
+    for i in eachindex(names)
+        d[names[i]] = convertFromTypeScalar(data[i], types[names[i]], expand)
     end
     return d
 end
@@ -638,6 +743,36 @@ function convertFromType(n, type, expand::Bool = true)
         return !expand ? n : map(y -> map(x -> try JavaCall.jcall(x,"toString", JavaCall.JString) catch e missing end, y), n)
     else
         return convert(Vector{JavaCall.JObject}, n)
+    end 
+end
+
+function convertFromTypeScalar(n, type, expand::Bool = true)
+    if type == "DOUBLE" 
+        n = convert(JavaCall.JObject, n)
+        return try convert(JavaCall.jdouble,convert(JDouble,n)) catch e missing end
+    elseif type == "DOUBLEARRAY"
+        n = convert(Vector{JavaCall.JObject}, n)
+        return !expand ? n : map(x -> try convert(JavaCall.jdouble,convert(JDouble,x)) catch e missing end, n)
+    elseif type == "INT"
+        n = convert(JavaCall.JObject, n)
+        return try convert(JavaCall.jint,convert(JInteger,n)) catch e missing end
+    elseif type == "INTARRAY"
+        n = convert(Vector{JavaCall.JObject}, n)
+        return !expand ? n : map(x -> try convert(JavaCall.jint,convert(JInteger,x)) catch e missing end, n)
+    elseif type == "BOOLEAN"
+        n = convert(JavaCall.JObject, n)
+        try convert(JavaCall.jboolean,convert(JBoolean,n)) catch e missing end
+    elseif type == "BOOLEANARRAY"
+        n = convert(Vector{JavaCall.JObject}, n)
+        return !expand ? n : map(x -> try convert(JavaCall.jboolean,convert(JBoolean,x)) catch e missing end, n)
+    elseif type == "CHAR" || type == "DATE"
+        n = convert(JavaCall.JObject, n)
+        return try JavaCall.jcall(n,"toString", JavaCall.JString) catch e missing end
+    elseif type == "CHARARRAY" || type == "DATEARRAY"
+        n = convert(Vector{JavaCall.JObject}, n)
+        return !expand ? n : map(x -> try JavaCall.jcall(x,"toString", JavaCall.JString) catch e missing end, n)
+    else
+        return convert(JavaCall.JObject, n)
     end 
 end
 
